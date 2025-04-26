@@ -1,86 +1,37 @@
 local player = game.Players.LocalPlayer
-local char = player.Character or player.CharacterAdded:Wait()
-local hrp = char:WaitForChild("HumanoidRootPart")
-local head = char:WaitForChild("Head")
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local ball = workspace:WaitForChild("TPSSYSTEM"):WaitForChild("TPS")
 
-local ballName = "Ball"
-local ball = nil
 
--- إعدادات قابلة للتعديل
-local settings = {
-	reactDistance = 8, -- مسافة الاستجابة للكرة
-	powerBoost = 8500, -- قوة دفع الكرة عند التصدي أو الدفع
-	headBoost = 11000, -- قوة الراسية
-	holdBallRange = 6, -- مدى السيطرة على الكرة
-	controlSmoothness = 0.08, -- سلاسة الحركة
-	zonePushBack = true, -- طرد أي أحد يقرب الكرة منك
-	zoneDistance = 6, -- المسافة اللي ما يخلي أحد يقرب فيها
-}
+local followDistance = 3 
+local followStrength = 50 
+local maxSpeed = 80 
 
--- البحث عن الكرة
-local function findBall()
-	for _, obj in pairs(workspace:GetChildren()) do
-		if obj:IsA("Part") and obj.Name == ballName then
-			ball = obj
-			break
-		end
-	end
-end
 
--- تعزيز رد الفعل والذكاء
-local function smartReact()
-	while true do
-		findBall()
-		if ball then
-			local dist = (ball.Position - hrp.Position).Magnitude
-			if dist <= settings.reactDistance then
-				local dir = (ball.Position - hrp.Position).Unit
-				ball.AssemblyLinearVelocity = dir * settings.powerBoost
-			end
-		end
-		task.wait(0.015)
-	end
-end
+game:GetService("RunService").Heartbeat:Connect(function()
+    if (ball.Position - hrp.Position).Magnitude <= followDistance then
+        local direction = (hrp.Position - ball.Position).Unit
+        local velocity = direction * followStrength
+        ball.Velocity = velocity + Vector3.new(0, ball.Velocity.Y, 0)
 
--- تحسين قوة الرأس تلقائيًا
-head.Touched:Connect(function(hit)
-	if hit:IsA("Part") and hit.Name == ballName then
-		local dir = (hit.Position - head.Position).Unit
-		hit.AssemblyLinearVelocity = dir * settings.headBoost
-	end
+
+        if ball.Velocity.Magnitude > maxSpeed then
+            ball.Velocity = ball.Velocity.Unit * maxSpeed
+        end
+    end
 end)
 
--- سلاسة وتحكم فائق بالكرة لما تكون معك
-local function smoothControl()
-	while true do
-		if ball and (ball.Position - hrp.Position).Magnitude <= settings.holdBallRange then
-			local targetPos = hrp.Position + hrp.CFrame.LookVector * 2
-			ball.Velocity = (targetPos - ball.Position) / settings.controlSmoothness
-		end
-		task.wait(0.01)
-	end
-end
 
--- إبعاد أي لاعب يحاول يقرب الكرة منك
-local function zoneBlock()
-	while settings.zonePushBack do
-		if ball then
-			for _, plr in pairs(game.Players:GetPlayers()) do
-				if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-					local enemyHRP = plr.Character.HumanoidRootPart
-					local dist = (ball.Position - enemyHRP.Position).Magnitude
-					if dist <= settings.zoneDistance then
-						local dir = (enemyHRP.Position - ball.Position).Unit
-						ball.AssemblyLinearVelocity = -dir * settings.powerBoost
-					end
-				end
-			end
-		end
-		task.wait(0.03)
-	end
+for _, p in pairs(game.Players:GetPlayers()) do
+    if p ~= player then
+        p.CharacterAdded:Connect(function(char)
+            local otherHRP = char:WaitForChild("HumanoidRootPart")
+            game:GetService("RunService").Heartbeat:Connect(function()
+                if (ball.Position - otherHRP.Position).Magnitude < 4 then
+                    ball.Velocity = ball.Velocity * 0.2 -- يصير تحكمهم ضعيف
+                end
+            end)
+        end)
+    end
 end
-
--- تشغيل الأنظمة
-task.spawn(smartReact)
-task.spawn(smoothControl)
-task.spawn(zoneBlock)
